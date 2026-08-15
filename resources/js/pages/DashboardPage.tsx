@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppLayout } from '../layouts/AppLayout';
 import { useAuth } from '../context/AuthContext';
-import { Video, Language } from '../types';
+import { Video, DubbedVideo, Language } from '../types';
 import api from '../services/api';
 import { JobProgressCard } from '../components/JobProgressCard';
+import { PlayDubPlayerModal } from '../components/PlayDubPlayerModal';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { Link } from 'react-router-dom';
 
@@ -15,6 +16,9 @@ export const DashboardPage: React.FC = () => {
   const [addingTargetLang, setAddingTargetLang] = useState<number | null>(null);
   const [selectedTargetLang, setSelectedTargetLang] = useState('bn');
   const [dubbingSubmitting, setDubbingSubmitting] = useState(false);
+
+  // Active Player state
+  const [playerData, setPlayerData] = useState<{ video: Video; dub: DubbedVideo } | null>(null);
 
   const fetchDashboardData = useCallback(async (isSilent = false) => {
     try {
@@ -268,9 +272,10 @@ export const DashboardPage: React.FC = () => {
                     {video.dubbed_videos.map((dub) => (
                       <JobProgressCard
                         key={dub.id}
+                        video={video}
                         dubbedVideo={dub}
-                        videoTitle={video.title}
                         languages={languages}
+                        onWatch={(v, d) => setPlayerData({ video: v, dub: d })}
                         onRetrySuccess={() => fetchDashboardData(true)}
                       />
                     ))}
@@ -282,6 +287,16 @@ export const DashboardPage: React.FC = () => {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Interactive Video Player Modal */}
+      {playerData && (
+        <PlayDubPlayerModal
+          video={playerData.video}
+          activeDubbedVideo={playerData.dub}
+          languages={languages}
+          onClose={() => setPlayerData(null)}
+        />
       )}
     </AppLayout>
   );

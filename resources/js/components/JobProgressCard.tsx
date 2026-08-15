@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
-import { DubbedVideo, Language, JobStatus } from '../types';
+import { DubbedVideo, Video, Language, JobStatus } from '../types';
 import api from '../services/api';
 
 interface JobProgressCardProps {
+  video: Video;
   dubbedVideo: DubbedVideo;
-  videoTitle: string;
   languages: Language[];
+  onWatch: (video: Video, dub: DubbedVideo) => void;
   onRetrySuccess?: () => void;
 }
 
 export const JobProgressCard: React.FC<JobProgressCardProps> = ({
+  video,
   dubbedVideo,
-  videoTitle,
   languages,
+  onWatch,
   onRetrySuccess,
 }) => {
   const [retrying, setRetrying] = useState(false);
@@ -78,7 +80,7 @@ export const JobProgressCard: React.FC<JobProgressCardProps> = ({
           <span className="badge bg-secondary bg-opacity-25 text-light border border-secondary px-3 py-1 rounded-pill mb-2">
             <i className="bi bi-translate me-1"></i> {sourceLangName} &rarr; {targetLangName}
           </span>
-          <h5 className="text-white brand-font fw-bold mb-0">{videoTitle}</h5>
+          <h5 className="text-white brand-font fw-bold mb-0">{video.title}</h5>
         </div>
 
         {/* Status Badge */}
@@ -177,7 +179,10 @@ export const JobProgressCard: React.FC<JobProgressCardProps> = ({
           <div className="text-success small fw-medium">
             <i className="bi bi-film me-1"></i> Dubbed video is ready for playback!
           </div>
-          <button className="btn btn-playdub btn-sm rounded-pill px-4">
+          <button
+            className="btn btn-playdub btn-sm rounded-pill px-4 shadow"
+            onClick={() => onWatch(video, dubbedVideo)}
+          >
             <i className="bi bi-play-fill me-1 fs-5 align-middle"></i> Watch Dubbed Video
           </button>
         </div>
