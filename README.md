@@ -6,38 +6,18 @@ PlayDub is an AI-powered multilingual video dubbing platform built to seamlessly
 
 ---
 
-## 📖 Local Setup Instructions
+## ⚡ 1-Command Docker Launch (Recommended)
 
-For a complete step-by-step local installation guide (Docker & Native PC setup), see [SETUP.md](SETUP.md).
-
-### Quick Start (Native PC / Laragon)
+Run the entire application (Laravel 13 API, PostgreSQL, Redis, Python AI worker, Nginx) with **one single Docker command**:
 
 ```bash
-# 1. Clone & install PHP dependencies
-git clone https://github.com/alimranedx/playdub.git
-cd playdub
-composer install
-cp .env.example .env
-php artisan key:generate
-
-# 2. Set up database & storage
-php artisan migrate:fresh --seed
-php artisan storage:link
-
-# 3. Install Node dependencies & build frontend
-npm install
-npm run build
-
-# 4. Set up Python service (optional virtualenv)
-cd python_service
-pip install -r requirements.txt
-cd ..
-
-# 5. Start all local services concurrently
-composer run dev
+docker-compose up -d --build
 ```
+*(Or run `composer run docker`)*
 
 Open your browser at 👉 **`http://localhost:8000`**
+
+For native PC setup instructions (Laragon / PHP CLI + Python + Node.js), see [SETUP.md](SETUP.md).
 
 ---
 
@@ -75,39 +55,6 @@ Open your browser at 👉 **`http://localhost:8000`**
 ### Infrastructure
 - **Containerization**: Docker & Docker Compose
 - **Web Server**: Nginx
-
----
-
-## 📐 System Architecture
-
-```text
-                                +-----------------------------------+
-                                |          React Frontend           |
-                                | (TypeScript + Vite + Bootstrap 5) |
-                                +-----------------+-----------------+
-                                                  |
-                                                  | REST API / JSON
-                                                  v
-                                +-----------------+-----------------+
-                                |          Laravel API              |
-                                |     (Auth, Projects, DB)          |
-                                +--------+----------------+---------+
-                                         |                |
-                       PostgreSQL DB     |                | Redis Queue
-                   (Users, Users, Dubs)  |                | (Jobs)
-                                         v                v
-                                +--------+---+   +--------+---------+
-                                | PostgreSQL |   |      Redis       |
-                                +------------+   +--------+---------+
-                                                          |
-                                                          | Processing Job Payload
-                                                          v
-                                                 +--------+---------+
-                                                 |  Python Worker   |
-                                                 | (FFmpeg, Whisper,|
-                                                 |  Translation,TTS)|
-                                                 +------------------+
-```
 
 ---
 
