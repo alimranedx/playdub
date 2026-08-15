@@ -5,6 +5,8 @@ namespace App\Jobs;
 use App\Enums\JobStatusEnum;
 use App\Models\DubbedVideo;
 use App\Models\ProcessingJob;
+use App\Models\Transcript;
+use App\Models\TranslatedSegment;
 use App\Models\Video;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -55,10 +57,11 @@ class ProcessVideoDubbingJob implements ShouldQueue
             'current_step' => 'Job queued in Redis processing queue',
         ]);
 
-        sleep(1);
+        if (!app()->environment('testing')) {
+            sleep(1);
+        }
 
         foreach ($steps as $stepData) {
-            // Check if job was cancelled
             $jobRecord->refresh();
             if ($jobRecord->status === JobStatusEnum::CANCELLED) {
                 return;
@@ -74,8 +77,36 @@ class ProcessVideoDubbingJob implements ShouldQueue
             $video->update(['status' => $stepData['status']]);
 
             if (!app()->environment('testing')) {
-                sleep(2); // Simulate processing step delay
+                sleep(2);
             }
+        }
+
+        // Generate Transcript and Translated Segment Records (e.g., Hindi -> Bangla or En -> Target)
+        $sourceLang = $video->original_language === 'auto' ? 'hi' : $video->original_language;
+        $targetLang = $dubbedVideo->target_language;
+
+        $demoSegments = $this->getDemoSegmentsForLanguagePair($sourceLang, $targetLang);
+
+        // Delete previous transcripts & translated segments for clean generation
+        Transcript::where('video_id', $video->id)->delete();
+
+        foreach ($demoSegments as $index => $item) {
+            $transcript = Transcript::create([
+                'video_id' => $video->id,
+                'start_time' => $item['start_time'],
+                'end_time' => $item['end_time'],
+                'text' => $item['source_text'],
+                'sequence' => $index + 1,
+            ]);
+
+            TranslatedSegment::create([
+                'dubbed_video_id' => $dubbedVideo->id,
+                'transcript_id' => $transcript->id,
+                'translated_text' => $item['translated_text'],
+                'start_time' => $item['start_time'],
+                'end_time' => $item['end_time'],
+                'sequence' => $index + 1,
+            ]);
         }
 
         // Mark as completed
@@ -95,6 +126,82 @@ class ProcessVideoDubbingJob implements ShouldQueue
             'status' => JobStatusEnum::COMPLETED,
         ]);
 
-        Log::info("Dubbing Job #{$jobRecord->id} completed for DubbedVideo #{$dubbedVideo->id}");
+        Log::info("Dubbing Job #{$jobRecord->id} completed with transcripts for DubbedVideo #{$dubbedVideo->id}");
+    }
+
+    private function getDemoSegmentsForLanguagePair(string $sourceLang, string $targetLang): array
+    {
+        if ($sourceLang === 'hi' && $targetLang === 'bn') {
+            return [
+                [
+                    'start_time' => 0.0,
+                    'end_time' => 3.5,
+                    'source_text' => 'नमस्ते, प्लेडब में आपका स्वागत है।',
+                    'translated_text' => 'নমস্কার, প্লেডাবে আপনাকে স্বাগতম।',
+                ],
+                [
+                    'start_time' => 3.6,
+                    'end_time' => 7.8,
+                    'source_text' => 'यह वीडियो हिंदी से बांग्ला में अनुवादित किया गया है।',
+                    'translated_text' => 'এই ভিডিওটি হিন্দি থেকে বাংলায় অনূদিত হয়েছে।',
+                ],
+                [
+                    'start_time' => 7.9,
+                    'end_time' => 12.0,
+                    'source_text' => 'एआई बहुभाषी वीडियो डबिंग प्लेटफॉर्म।',
+                    'translated_text' => 'এআই বহুভাষিক ভিডিও ডাবিং প্ল্যাটফর্ম।',
+                ],
+                [
+                    'start_time' => 12.1,
+                    'end_time' => 16.5,
+                    'source_text' => 'आप किसी भी भाषा में वीडियो देख सकते हैं।',
+                    'translated_text' => 'আপনি যেকোনো ভাষায় ভিডিও দেখতে পারেন।',
+                ],
+            ];
+        }
+
+        if ($targetLang === 'bn') {
+            return [
+                [
+                    'start_time' => 0.0,
+                    'end_time' => 3.5,
+                    'source_text' => 'Welcome to PlayDub AI Video Dubbing Platform.',
+                    'translated_text' => 'প্লেডাব এআই ভিডিও ডাবিং প্ল্যাটফর্মে আপনাকে স্বাগতম।',
+                ],
+                [
+                    'start_time' => 3.6,
+                    'end_time' => 7.8,
+                    'source_text' => 'Translating audio content directly into Bangla.',
+                    'translated_text' => 'ভিডিওর অডিও কনটেন্ট সরাসরি বাংলায় অনূদিত হচ্ছে।',
+                ],
+                [
+                    'start_time' => 7.9,
+                    'end_time' => 12.0,
+                    'source_text' => 'AI speech-to-text, translation, and voice synthesis.',
+                    'translated_text' => 'এআই স্পিচ-টু-টেক্সট, অনুবাদ এবং ভয়েস সিন্থেসিস প্রযুক্তি।',
+                ],
+                [
+                    'start_time' => 12.1,
+                    'end_time' => 16.5,
+                    'source_text' => 'Enjoy your video with native Bangla audio and subtitles.',
+                    'translated_text' => 'বাংলা অডিও এবং সাবটাইটেল সহ ভিডিওটি উপভোগ করুন।',
+                ],
+            ];
+        }
+
+        return [
+            [
+                'start_time' => 0.0,
+                'end_time' => 3.5,
+                'source_text' => 'Original Video Audio Stream',
+                'translated_text' => "Translated Audio Stream ({$targetLang})",
+            ],
+            [
+                'start_time' => 3.6,
+                'end_time' => 8.0,
+                'source_text' => 'Multilingual speech processing active',
+                'translated_text' => "Processed target language content ({$targetLang})",
+            ],
+        ];
     }
 }

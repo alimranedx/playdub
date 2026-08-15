@@ -28,6 +28,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/videos', [VideoController::class, 'index']);
         Route::post('/videos', [VideoController::class, 'store']);
         Route::get('/videos/{video}', [VideoController::class, 'show']);
+        Route::get('/videos/{video}/transcript', [VideoController::class, 'transcript']);
         Route::delete('/videos/{video}', [VideoController::class, 'destroy']);
         Route::post('/videos/{video}/dub', [VideoController::class, 'dub']);
 

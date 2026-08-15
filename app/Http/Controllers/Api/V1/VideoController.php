@@ -12,6 +12,7 @@ use App\Http\Resources\VideoResource;
 use App\Jobs\ProcessVideoDubbingJob;
 use App\Models\DubbedVideo;
 use App\Models\ProcessingJob;
+use App\Models\Transcript;
 use App\Models\Video;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -193,6 +194,42 @@ class VideoController extends Controller
         return response()->json([
             'message' => 'Dubbing job restarted.',
             'job' => new ProcessingJobResource($processingJob),
+        ]);
+    }
+
+    public function transcript(Request $request, Video $video): JsonResponse
+    {
+        if ($video->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'Unauthorized access.'], 403);
+        }
+
+        $targetLang = $request->query('target_language', 'bn');
+        $dubbedVideo = $video->dubbedVideos()->where('target_language', $targetLang)->first();
+
+        $transcripts = Transcript::where('video_id', $video->id)
+            ->orderBy('sequence')
+            ->get();
+
+        $result = $transcripts->map(function ($t) use ($dubbedVideo) {
+            $translatedSegment = $dubbedVideo
+                ? $t->translatedSegments()->where('dubbed_video_id', $dubbedVideo->id)->first()
+                : null;
+
+            return [
+                'id' => $t->id,
+                'sequence' => $t->sequence,
+                'start_time' => (float) $t->start_time,
+                'end_time' => (float) $t->end_time,
+                'source_text' => $t->text,
+                'translated_text' => $translatedSegment ? $translatedSegment->translated_text : $t->text,
+            ];
+        });
+
+        return response()->json([
+            'video_id' => $video->id,
+            'original_language' => $video->original_language,
+            'target_language' => $targetLang,
+            'segments' => $result,
         ]);
     }
 }
