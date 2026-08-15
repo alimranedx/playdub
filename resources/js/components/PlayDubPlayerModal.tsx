@@ -25,6 +25,8 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
   onClose,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
   const [isPlaying, setIsPlaying] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -35,7 +37,7 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
   const [showTranscriptDrawer, setShowTranscriptDrawer] = useState(true);
 
   // Dubbed Audio Voice Controls
-  const [dubbedAudioMode, setDubbedAudioMode] = useState<'bangla' | 'original' | 'both'>('bangla');
+  const [dubbedAudioMode, setDubbedAudioMode] = useState<'bangla' | 'original'>('bangla');
   const [isSpeakingBangla, setIsSpeakingBangla] = useState(false);
   const [selectedDubId, setSelectedDubId] = useState<number>(activeDubbedVideo.id);
   const [audioChangeToast, setAudioChangeToast] = useState<string | null>(null);
@@ -59,6 +61,49 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
     : currentTargetLang
     ? `${currentTargetLang.name} (${currentTargetLang.native_name})`
     : currentLangCode.toUpperCase();
+
+  // Helper to extract YouTube embed URL
+  const getYouTubeEmbedUrl = (url?: string): string | null => {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    if (match && match[2].length === 11) {
+      const muteParam = dubbedAudioMode === 'bangla' ? '&mute=1' : '&mute=0';
+      return `https://www.youtube.com/embed/${match[2]}?autoplay=1&enablejsapi=1${muteParam}`;
+    }
+    return null;
+  };
+
+  const youtubeEmbedUrl = video.source_type === 'url' ? getYouTubeEmbedUrl(video.source_url) : null;
+  const defaultSampleUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+
+  const [videoSrcUrl, setVideoSrcUrl] = useState<string>(() => {
+    if (video.original_file_path) {
+      return `/storage/${video.original_file_path}`;
+    }
+    if (video.source_url && video.source_url.match(/\.(mp4|webm|ogg)$/i)) {
+      return video.source_url;
+    }
+    return defaultSampleUrl;
+  });
+
+  // MUTE ORIGINAL AUDIO WHEN IN BANGLA VOICE MODE
+  useEffect(() => {
+    // 1. YouTube Iframe Mute/Unmute PostMessage
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      const command = dubbedAudioMode === 'bangla' ? 'mute' : 'unMute';
+      try {
+        iframeRef.current.contentWindow.postMessage(`{"event":"command","func":"${command}","args":""}`, '*');
+      } catch (e) {
+        console.warn('Iframe postMessage failed:', e);
+      }
+    }
+
+    // 2. HTML5 Video element Mute/Unmute
+    if (videoRef.current) {
+      videoRef.current.muted = (dubbedAudioMode === 'bangla');
+    }
+  }, [dubbedAudioMode, youtubeEmbedUrl]);
 
   // Fetch Transcripts from Backend API
   useEffect(() => {
@@ -86,7 +131,7 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
   // Synthesize & Speak Bangla Voice Track when segment changes
   useEffect(() => {
     if (
-      dubbedAudioMode !== 'original' &&
+      dubbedAudioMode === 'bangla' &&
       activeSegment &&
       'speechSynthesis' in window &&
       isPlaying
@@ -97,10 +142,9 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
         const textToSpeak = activeSegment.translated_text;
         const utterance = new SpeechSynthesisUtterance(textToSpeak);
         
-        // Select Bangla voice if available
         const voices = window.speechSynthesis.getVoices();
         const banglaVoice = voices.find(
-          (v) => v.lang.includes('bn') || v.name.toLowerCase().includes('bangla') || v.lang.includes('hi')
+          (v) => v.lang.includes('bn') || v.name.toLowerCase().includes('bangla')
         );
         if (banglaVoice) {
           utterance.voice = banglaVoice;
@@ -118,31 +162,11 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
       } catch (e) {
         console.warn('Speech synthesis error:', e);
       }
+    } else if (dubbedAudioMode === 'original' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsSpeakingBangla(false);
     }
   }, [activeSegment?.id, dubbedAudioMode, isPlaying, playbackSpeed, volume]);
-
-  // YouTube Embed Helper
-  const getYouTubeEmbedUrl = (url?: string): string | null => {
-    if (!url) return null;
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
-    return match && match[2].length === 11
-      ? `https://www.youtube.com/embed/${match[2]}?autoplay=1&enablejsapi=1`
-      : null;
-  };
-
-  const youtubeEmbedUrl = video.source_type === 'url' ? getYouTubeEmbedUrl(video.source_url) : null;
-  const defaultSampleUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
-
-  const [videoSrcUrl, setVideoSrcUrl] = useState<string>(() => {
-    if (video.original_file_path) {
-      return `/storage/${video.original_file_path}`;
-    }
-    if (video.source_url && video.source_url.match(/\.(mp4|webm|ogg)$/i)) {
-      return video.source_url;
-    }
-    return defaultSampleUrl;
-  });
 
   const handleLanguageChange = (dubId: number) => {
     setSelectedDubId(dubId);
@@ -325,13 +349,14 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
                     style={{ zIndex: 20 }}
                   >
                     <span className="spinner-grow spinner-grow-sm text-white" role="status"></span>
-                    <span>🇧🇩 Bangla AI Voice Synthesizer Speaking...</span>
+                    <span>🇧🇩 Bangla AI Voice Active (Original Audio Muted)</span>
                   </div>
                 )}
 
                 {youtubeEmbedUrl ? (
                   <div className="ratio ratio-16x9">
                     <iframe
+                      ref={iframeRef}
                       src={youtubeEmbedUrl}
                       title={video.title}
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -428,21 +453,21 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
                         className={`btn ${dubbedAudioMode === 'bangla' ? 'btn-success fw-bold' : 'btn-outline-secondary'}`}
                         onClick={() => {
                           setDubbedAudioMode('bangla');
-                          setAudioChangeToast('🇧🇩 Bangla Dubbed Voice Activated');
+                          setAudioChangeToast('🇧🇩 Bangla Dubbed Voice Active (Original Muted)');
                           setTimeout(() => setAudioChangeToast(null), 3000);
                         }}
                       >
-                        🇧🇩 Bangla Voice
+                        <i className="bi bi-volume-mute-fill me-1"></i> 🇧🇩 Bangla Voice Only
                       </button>
                       <button
                         className={`btn ${dubbedAudioMode === 'original' ? 'btn-primary fw-bold' : 'btn-outline-secondary'}`}
                         onClick={() => {
                           setDubbedAudioMode('original');
-                          setAudioChangeToast('🇮🇳 Hindi Original Audio Activated');
+                          setAudioChangeToast('🇮🇳 Hindi Original Audio Active');
                           setTimeout(() => setAudioChangeToast(null), 3000);
                         }}
                       >
-                        🇮🇳 Hindi Original
+                        <i className="bi bi-volume-up-fill me-1"></i> 🇮🇳 Hindi Original
                       </button>
                     </div>
                   </div>
