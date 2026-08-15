@@ -23,9 +23,22 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showSubtitles, setShowSubtitles] = useState(true);
   const [selectedDubId, setSelectedDubId] = useState<number>(activeDubbedVideo.id);
+  const [audioChangeToast, setAudioChangeToast] = useState<string | null>(null);
 
-  const currentDub = video.dubbed_videos?.find((d) => d.id === selectedDubId) || activeDubbedVideo;
-  const currentTargetLang = languages.find((l) => l.code === currentDub.target_language);
+  // Correct language evaluation (handling -1 for Original language)
+  const isOriginalSelected = selectedDubId === -1;
+  const currentDub = isOriginalSelected
+    ? null
+    : video.dubbed_videos?.find((d) => d.id === selectedDubId) || activeDubbedVideo;
+
+  const currentLangCode = isOriginalSelected
+    ? video.original_language
+    : currentDub?.target_language || activeDubbedVideo.target_language;
+
+  const currentTargetLang = languages.find((l) => l.code === currentLangCode);
+  const activeLangName = currentTargetLang
+    ? `${currentTargetLang.name} (${currentTargetLang.native_name})`
+    : currentLangCode.toUpperCase();
 
   // Helper to extract YouTube embed URL
   const getYouTubeEmbedUrl = (url?: string): string | null => {
@@ -38,8 +51,6 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
   };
 
   const youtubeEmbedUrl = video.source_type === 'url' ? getYouTubeEmbedUrl(video.source_url) : null;
-
-  // Reliable sample fallback for direct video player
   const defaultSampleUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
 
   const [videoSrcUrl, setVideoSrcUrl] = useState<string>(() => {
@@ -51,6 +62,24 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
     }
     return defaultSampleUrl;
   });
+
+  const handleLanguageChange = (dubId: number) => {
+    setSelectedDubId(dubId);
+
+    const isOrig = dubId === -1;
+    const targetDub = isOrig ? null : video.dubbed_videos?.find((d) => d.id === dubId);
+    const code = isOrig ? video.original_language : targetDub?.target_language || 'bn';
+    const langObj = languages.find((l) => l.code === code);
+    const label = langObj ? `${langObj.name} (${langObj.native_name})` : code.toUpperCase();
+
+    setAudioChangeToast(`Switched Audio Track to ${label}`);
+    setTimeout(() => setAudioChangeToast(null), 3000);
+
+    // Synchronize video player currentTime on track change
+    if (videoRef.current) {
+      videoRef.current.play().catch(console.error);
+    }
+  };
 
   useEffect(() => {
     const v = videoRef.current;
@@ -157,7 +186,7 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
               <div>
                 <h5 className="modal-title brand-font fw-bold text-white mb-0">{video.title}</h5>
                 <span className="text-secondary small">
-                  Playing in <span className="text-gradient fw-bold">{currentTargetLang?.name || currentDub.target_language}</span> Dubbed Audio
+                  Playing in <span className="text-gradient fw-bold">{activeLangName}</span> Audio Track
                 </span>
               </div>
             </div>
@@ -171,6 +200,16 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
 
           {/* Video Player Display Container */}
           <div className="modal-body p-0 position-relative bg-black text-center" style={{ minHeight: '320px' }}>
+            {/* Audio Change Toast Banner */}
+            {audioChangeToast && (
+              <div
+                className="position-absolute top-0 start-50 translate-middle-x mt-3 px-4 py-2 rounded-pill bg-primary text-white fw-bold shadow-lg border border-light border-opacity-25 animate__animated animate__fadeInDown"
+                style={{ zIndex: 20 }}
+              >
+                <i className="bi bi-music-note-beamed me-2"></i> {audioChangeToast}
+              </div>
+            )}
+
             {youtubeEmbedUrl ? (
               <div className="ratio ratio-16x9">
                 <iframe
@@ -196,10 +235,11 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
             {/* Subtitles Overlay */}
             {showSubtitles && (
               <div
-                className="position-absolute bottom-0 start-50 translate-middle-x mb-4 px-3 py-1 rounded bg-black bg-opacity-75 text-warning fw-medium text-center small shadow"
+                className="position-absolute bottom-0 start-50 translate-middle-x mb-4 px-3 py-1.5 rounded bg-black bg-opacity-80 text-warning fw-medium text-center small shadow border border-secondary border-opacity-25"
                 style={{ maxWidth: '85%', pointerEvents: 'none', zIndex: 10 }}
               >
-                [ {currentTargetLang?.name || 'Dubbed'} AI Subtitles ] — Audio track synchronized cleanly.
+                <span className="badge bg-warning text-dark me-2">CC</span>
+                [ {activeLangName} AI Subtitles ] — Synchronized audio stream active.
               </div>
             )}
           </div>
@@ -266,10 +306,10 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
               <div className="d-flex align-items-center gap-2">
                 <span className="text-secondary small fw-semibold">Audio Track:</span>
                 <select
-                  className="form-select form-select-dark form-select-sm"
-                  style={{ width: '160px' }}
+                  className="form-select form-select-dark form-select-sm fw-medium border-primary border-opacity-50"
+                  style={{ width: '180px' }}
                   value={selectedDubId}
-                  onChange={(e) => setSelectedDubId(Number(e.target.value))}
+                  onChange={(e) => handleLanguageChange(Number(e.target.value))}
                 >
                   <option value={-1}>Original — {video.original_language.toUpperCase()}</option>
                   {video.dubbed_videos?.map((dub) => {
