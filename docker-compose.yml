@@ -31,6 +31,37 @@ services:
     networks:
       - playdub_network
 
+  queue-worker:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: playdub_queue_worker
+    restart: unless-stopped
+    command: php artisan queue:work --tries=3 --timeout=90
+    environment:
+      APP_ENV: local
+      APP_DEBUG: 'true'
+      APP_URL: http://localhost:8000
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: playdub
+      DB_USERNAME: postgres
+      DB_PASSWORD: secret
+      QUEUE_CONNECTION: redis
+      CACHE_STORE: redis
+      REDIS_CLIENT: predis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - .:/var/www
+    depends_on:
+      - backend
+      - redis
+      - postgres
+    networks:
+      - playdub_network
+
   nginx:
     image: nginx:alpine
     container_name: playdub_nginx
