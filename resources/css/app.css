@@ -1,0 +1,124 @@
+@import 'bootstrap/dist/css/bootstrap.min.css';
+@import 'bootstrap-icons/font/bootstrap-icons.css';
+
+:root {
+  --playdub-primary: #6366f1;
+  --playdub-primary-hover: #4f46e5;
+  --playdub-secondary: #ec4899;
+  --playdub-accent: #06b6d4;
+  --playdub-dark-bg: #0f172a;
+  --playdub-card-bg: rgba(30, 41, 59, 0.7);
+  --playdub-card-border: rgba(255, 255, 255, 0.1);
+  --playdub-glow: rgba(99, 102, 241, 0.35);
+  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--playdub-dark-bg);
+  color: #f8fafc;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6, .brand-font {
+  font-family: var(--font-heading);
+}
+
+/* Glassmorphism Cards */
+.glass-card {
+  background: var(--playdub-card-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--playdub-card-border);
+  border-radius: 1rem;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.glass-card:hover {
+  box-shadow: 0 12px 40px 0 var(--playdub-glow);
+}
+
+/* Vibrant Gradient Accents */
+.text-gradient {
+  background: linear-gradient(135deg, #818cf8 0%, #c084fc 50%, #f472b6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.bg-gradient-playdub {
+  background: linear-gradient(135deg, var(--playdub-primary) 0%, var(--playdub-secondary) 100%);
+}
+
+.btn-playdub {
+  background: linear-gradient(135deg, var(--playdub-primary) 0%, #4f46e5 100%);
+  color: #ffffff;
+  border: none;
+  font-weight: 600;
+  padding: 0.75rem 1.75rem;
+  border-radius: 0.75rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.4);
+}
+
+.btn-playdub:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px 0 rgba(99, 102, 241, 0.6);
+}
+
+/* Form Customizations */
+.form-control-dark, .form-select-dark {
+  background-color: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f8fafc;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.25rem;
+}
+
+.form-control-dark:focus, .form-select-dark:focus {
+  background-color: rgba(15, 23, 42, 0.95);
+  border-color: var(--playdub-primary);
+  color: #ffffff;
+  box-shadow: 0 0 0 0.25rem var(--playdub-glow);
+}
+
+/* Navbar Custom Styling */
+.navbar-playdub {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nav-link-playdub {
+  color: #cbd5e1;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.nav-link-playdub:hover, .nav-link-playdub.active {
+  color: #ffffff;
+}
+
+/* Badges */
+.badge-playdub {
+  background: rgba(99, 102, 241, 0.2);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  font-weight: 500;
+  padding: 0.35em 0.75em;
+  border-radius: 0.5rem;
+}
+
+/* Pulse animation for active processing indicators */
+@keyframes pulse-glow {
+  0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+}
+
+.pulse-indicator {
+  animation: pulse-glow 2s infinite;
+}
