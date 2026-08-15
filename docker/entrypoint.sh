@@ -1,27 +1,19 @@
 #!/bin/sh
 set -e
 
-echo "--------------------------------------------------------"
-echo "🚀 Initializing PlayDub Automated Docker Environment..."
-echo "--------------------------------------------------------"
-
 # Ensure .env exists
 if [ ! -f .env ]; then
     cp .env.example .env
 fi
 
-# Generate App Key if missing
-php artisan key:generate --no-interaction --force
+# Run initialization in background so PHP-FPM starts listening immediately
+(
+    sleep 1
+    php artisan key:generate --no-interaction --force
+    php artisan migrate --force
+    php artisan db:seed --class=LanguageSeeder --force
+    php artisan storage:link || true
+) &
 
-# Run Migrations & Language Seeders automatically
-php artisan migrate --force
-php artisan db:seed --class=LanguageSeeder --force
-
-# Storage symlink
-php artisan storage:link || true
-
-echo "--------------------------------------------------------"
-echo "✅ PlayDub is Live & Ready on: http://localhost:8000"
-echo "--------------------------------------------------------"
-
+# Start PHP-FPM immediately so Nginx can connect to port 9000 without 502 delay
 exec php-fpm
