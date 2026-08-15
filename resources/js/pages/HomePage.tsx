@@ -15,6 +15,8 @@ export const HomePage: React.FC = () => {
   const [sourceLang, setSourceLang] = useState('auto');
   const [targetLang, setTargetLang] = useState('bn');
   const [loadingLangs, setLoadingLangs] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchLanguages = async () => {
@@ -30,13 +32,47 @@ export const HomePage: React.FC = () => {
     fetchLanguages();
   }, []);
 
-  const handleStartDubbing = (e: React.FormEvent) => {
+  const handleStartDubbing = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
     if (!user) {
       navigate('/login');
       return;
     }
-    navigate('/dashboard');
+
+    if (!videoUrl && !selectedFile) {
+      setError('Please provide a video URL or upload a video file to proceed.');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('source_type', selectedFile ? 'upload' : 'url');
+      if (selectedFile) {
+        formData.append('video_file', selectedFile);
+      } else {
+        formData.append('source_url', videoUrl);
+      }
+      formData.append('original_language', sourceLang);
+      formData.append('target_language', targetLang);
+
+      await api.post('/videos', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      // Redirect to dashboard to view live job progress
+      navigate('/dashboard');
+    } catch (err: any) {
+      console.error('Failed to create dubbing project:', err);
+      setError(err.response?.data?.message || 'Failed to start dubbing project. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -55,6 +91,13 @@ export const HomePage: React.FC = () => {
 
           {/* User Experience Input Card */}
           <div className="glass-card p-4 p-md-5 text-start shadow-lg">
+            {error && (
+              <div className="alert alert-danger border-0 rounded-3 small mb-4" role="alert">
+                <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                {error}
+              </div>
+            )}
+
             <form onSubmit={handleStartDubbing}>
               {/* URL Input */}
               <div className="mb-4">
@@ -67,6 +110,7 @@ export const HomePage: React.FC = () => {
                   placeholder="https://www.youtube.com/watch?v=..."
                   value={videoUrl}
                   onChange={(e) => setVideoUrl(e.target.value)}
+                  disabled={submitting}
                 />
               </div>
 
@@ -97,6 +141,7 @@ export const HomePage: React.FC = () => {
                     className="d-none"
                     accept="video/*"
                     onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                    disabled={submitting}
                   />
                 </div>
               </div>
@@ -109,6 +154,7 @@ export const HomePage: React.FC = () => {
                     className="form-select form-select-dark"
                     value={sourceLang}
                     onChange={(e) => setSourceLang(e.target.value)}
+                    disabled={submitting}
                   >
                     <option value="auto">✨ Auto Detect</option>
                     {languages.map((lang) => (
@@ -124,7 +170,7 @@ export const HomePage: React.FC = () => {
                     className="form-select form-select-dark"
                     value={targetLang}
                     onChange={(e) => setTargetLang(e.target.value)}
-                    disabled={loadingLangs}
+                    disabled={loadingLangs || submitting}
                   >
                     {languages.map((lang) => (
                       <option key={lang.id} value={lang.code}>
@@ -137,8 +183,17 @@ export const HomePage: React.FC = () => {
 
               {/* Start Button */}
               <div className="d-grid">
-                <button type="submit" className="btn btn-playdub btn-lg py-3 fw-bold fs-5">
-                  <i className="bi bi-cpu-fill me-2"></i> Start Dubbing
+                <button type="submit" className="btn btn-playdub btn-lg py-3 fw-bold fs-5" disabled={submitting}>
+                  {submitting ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                      Submitting Video Project...
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-cpu-fill me-2"></i> Start Dubbing
+                    </>
+                  )}
                 </button>
               </div>
             </form>

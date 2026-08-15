@@ -31,17 +31,17 @@ export type JobStatus =
   | 'failed'
   | 'cancelled';
 
-export interface Video {
+export interface ProcessingJob {
   id: number;
-  user_id: number;
-  title: string;
-  source_type: SourceType;
-  source_url?: string;
-  original_file_path?: string;
-  original_language: string;
-  duration?: number;
-  file_size?: number;
+  video_id: number;
+  dubbed_video_id?: number;
+  job_type: string;
   status: JobStatus;
+  progress: number;
+  current_step?: string;
+  error_message?: string;
+  started_at?: string;
+  completed_at?: string;
   created_at: string;
 }
 
@@ -55,6 +55,22 @@ export interface DubbedVideo {
   video_path?: string;
   stream_path?: string;
   duration?: number;
+  latest_job?: ProcessingJob | null;
+  created_at: string;
+}
+
+export interface Video {
+  id: number;
+  user_id: number;
+  title: string;
+  source_type: SourceType;
+  source_url?: string;
+  original_file_path?: string;
+  original_language: string;
+  duration?: number;
+  file_size?: number;
+  status: JobStatus;
+  dubbed_videos?: DubbedVideo[];
   created_at: string;
 }
 
