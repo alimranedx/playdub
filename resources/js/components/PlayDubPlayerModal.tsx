@@ -33,14 +33,14 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showSubtitles, setShowSubtitles] = useState(true);
   const [showTranscriptDrawer, setShowTranscriptDrawer] = useState(true);
+  const [enableBanglaVoice, setEnableBanglaVoice] = useState(true);
   const [selectedDubId, setSelectedDubId] = useState<number>(activeDubbedVideo.id);
   const [audioChangeToast, setAudioChangeToast] = useState<string | null>(null);
 
-  // Transcript state
+  // Transcript & Translation Segments
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [loadingTranscripts, setLoadingTranscripts] = useState(false);
 
-  // Correct language evaluation
   const isOriginalSelected = selectedDubId === -1;
   const currentDub = isOriginalSelected
     ? null
@@ -55,7 +55,7 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
     ? `${currentTargetLang.name} (${currentTargetLang.native_name})`
     : currentLangCode.toUpperCase();
 
-  // Fetch Transcripts from API
+  // Fetch Transcripts & Translations from backend API
   useEffect(() => {
     const fetchTranscripts = async () => {
       setLoadingTranscripts(true);
@@ -65,7 +65,7 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
         });
         setSegments(response.data.segments || []);
       } catch (err) {
-        console.error('Failed to load transcripts:', err);
+        console.error('Failed to load transcript segments:', err);
       } finally {
         setLoadingTranscripts(false);
       }
@@ -73,12 +73,28 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
     fetchTranscripts();
   }, [video.id, currentLangCode]);
 
-  // Find active segment matching currentTime
+  // Determine current active segment matching currentTime
   const activeSegment = segments.find(
     (s) => currentTime >= s.start_time && currentTime <= s.end_time
-  ) || segments[0];
+  ) || (segments.length > 0 ? segments[0] : null);
 
-  // Helper for YouTube embed
+  // Synthesize Bangla Speech when active segment changes if Bangla Voice is enabled
+  useEffect(() => {
+    if (enableBanglaVoice && activeSegment && !isOriginalSelected && 'speechSynthesis' in window && isPlaying) {
+      try {
+        window.speechSynthesis.cancel(); // cancel previous utterance
+        const utterance = new SpeechSynthesisUtterance(activeSegment.translated_text);
+        utterance.lang = 'bn-BD';
+        utterance.rate = playbackSpeed;
+        utterance.volume = volume;
+        window.speechSynthesis.speak(utterance);
+      } catch (e) {
+        console.warn('Speech synthesis unavailable:', e);
+      }
+    }
+  }, [activeSegment?.id, enableBanglaVoice, isOriginalSelected, isPlaying, playbackSpeed, volume]);
+
+  // YouTube Embed Helper
   const getYouTubeEmbedUrl = (url?: string): string | null => {
     if (!url) return null;
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
@@ -110,7 +126,7 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
     const langObj = languages.find((l) => l.code === code);
     const label = langObj ? `${langObj.name} (${langObj.native_name})` : code.toUpperCase();
 
-    setAudioChangeToast(`Switched Audio & Translation Track to ${label}`);
+    setAudioChangeToast(`Switched Audio & CC Subtitles to ${label}`);
     setTimeout(() => setAudioChangeToast(null), 3000);
 
     if (videoRef.current) {
@@ -127,7 +143,10 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
       setDuration(v.duration);
       v.play().catch(() => setIsPlaying(false));
     };
-    const handleEnded = () => setIsPlaying(false);
+    const handleEnded = () => {
+      setIsPlaying(false);
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    };
     const handleError = () => {
       console.warn('Video failed to load source, falling back to sample video stream');
       setVideoSrcUrl(defaultSampleUrl);
@@ -152,8 +171,10 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
     if (isPlaying) {
       v.pause();
       setIsPlaying(false);
+      if ('speechSynthesis' in window) window.speechSynthesis.pause();
     } else {
       v.play().then(() => setIsPlaying(true)).catch(console.error);
+      if ('speechSynthesis' in window) window.speechSynthesis.resume();
     }
   };
 
@@ -199,6 +220,13 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
     }
   };
 
+  const handleClose = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    onClose();
+  };
+
   const formatTime = (timeInSec: number) => {
     if (isNaN(timeInSec)) return '0:00';
     const minutes = Math.floor(timeInSec / 60);
@@ -210,7 +238,7 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
     <div
       className="modal fade show d-block"
       tabIndex={-1}
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)', zIndex: 1060 }}
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.88)', backdropFilter: 'blur(12px)', zIndex: 1060 }}
     >
       <div className="modal-dialog modal-xl modal-dialog-centered">
         <div className="modal-content glass-card border-secondary text-light overflow-hidden shadow-lg">
@@ -223,7 +251,7 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
               <div>
                 <h5 className="modal-title brand-font fw-bold text-white mb-0">{video.title}</h5>
                 <span className="text-secondary small">
-                  Playing in <span className="text-gradient fw-bold">{activeLangName}</span> Audio Track
+                  Playing in <span className="text-gradient fw-bold">{activeLangName}</span> Dubbed Audio & CC Subtitles
                 </span>
               </div>
             </div>
@@ -238,7 +266,7 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
                 type="button"
                 className="btn-close btn-close-white ms-2"
                 aria-label="Close"
-                onClick={onClose}
+                onClick={handleClose}
               ></button>
             </div>
           </div>
@@ -282,11 +310,13 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
                 {/* Subtitles Overlay displaying active translated text */}
                 {showSubtitles && activeSegment && (
                   <div
-                    className="position-absolute bottom-0 start-50 translate-middle-x mb-4 px-3 py-2 rounded bg-black bg-opacity-85 text-warning fw-semibold text-center fs-6 shadow border border-secondary border-opacity-25"
+                    className="position-absolute bottom-0 start-50 translate-middle-x mb-4 px-4 py-2 rounded-3 bg-black bg-opacity-90 text-warning fw-bold text-center fs-5 shadow-lg border border-warning border-opacity-50"
                     style={{ maxWidth: '90%', pointerEvents: 'none', zIndex: 10 }}
                   >
-                    <span className="badge bg-warning text-dark me-2">CC ({currentLangCode.toUpperCase()})</span>
-                    {isOriginalSelected ? activeSegment.source_text : activeSegment.translated_text}
+                    <span className="badge bg-warning text-dark me-2 fs-7 align-middle">CC ({currentLangCode.toUpperCase()})</span>
+                    <span className="text-white">
+                      "{isOriginalSelected ? activeSegment.source_text : activeSegment.translated_text}"
+                    </span>
                   </div>
                 )}
               </div>
@@ -369,10 +399,18 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
 
                   <div className="d-flex align-items-center gap-2">
                     <button
-                      className={`btn btn-sm ${showSubtitles ? 'btn-outline-info' : 'btn-outline-secondary'} rounded-pill px-3`}
+                      className={`btn btn-sm ${enableBanglaVoice ? 'btn-success' : 'btn-outline-secondary'} rounded-pill px-3`}
+                      onClick={() => setEnableBanglaVoice(!enableBanglaVoice)}
+                      title="Toggle AI Bangla Voice Reader"
+                    >
+                      <i className="bi bi-mic-fill me-1"></i> TTS Voice
+                    </button>
+
+                    <button
+                      className={`btn btn-sm ${showSubtitles ? 'btn-info' : 'btn-outline-secondary'} rounded-pill px-3`}
                       onClick={() => setShowSubtitles(!showSubtitles)}
                     >
-                      <i className="bi bi-subtitles me-1"></i> CC
+                      <i className="bi bi-subtitles me-1"></i> CC Subtitles
                     </button>
 
                     {!youtubeEmbedUrl && (
@@ -414,9 +452,9 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
               <div className="col-lg-5 col-xl-4 bg-dark bg-opacity-80 border-start border-secondary border-opacity-25 p-3 overflow-y-auto" style={{ maxHeight: '520px' }}>
                 <div className="d-flex align-items-center justify-content-between mb-3 border-bottom border-secondary border-opacity-25 pb-2">
                   <h6 className="text-white brand-font fw-bold mb-0 d-flex align-items-center gap-2">
-                    <i className="bi bi-chat-quote-fill text-gradient"></i> Interactive Translation Transcript
+                    <i className="bi bi-chat-quote-fill text-gradient"></i> Hindi &rarr; Bangla Translation
                   </h6>
-                  <span className="badge bg-secondary bg-opacity-25 text-light small">
+                  <span className="badge bg-primary bg-opacity-25 text-info border border-info border-opacity-30 small">
                     {video.original_language.toUpperCase()} &rarr; {currentLangCode.toUpperCase()}
                   </span>
                 </div>
@@ -424,7 +462,7 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
                 {loadingTranscripts ? (
                   <div className="text-center py-4 text-secondary small">
                     <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                    Fetching transcript segments...
+                    Fetching Hindi to Bangla transcripts...
                   </div>
                 ) : segments.length === 0 ? (
                   <div className="text-center py-4 text-secondary small">
@@ -439,7 +477,7 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
                           key={seg.id}
                           className={`p-3 rounded-3 border transition-all cursor-pointer mb-2 ${
                             isActive
-                              ? 'border-primary bg-primary bg-opacity-15 shadow-sm'
+                              ? 'border-warning bg-warning bg-opacity-15 shadow-sm'
                               : 'border-secondary border-opacity-25 bg-dark bg-opacity-40 hover-bg-dark'
                           }`}
                           onClick={() => {
@@ -454,16 +492,16 @@ export const PlayDubPlayerModal: React.FC<PlayDubPlayerModalProps> = ({
                               {formatTime(seg.start_time)} - {formatTime(seg.end_time)}
                             </span>
                             {isActive && (
-                              <span className="badge bg-success text-white fs-8">
-                                <i className="bi bi-volume-up-fill me-1"></i> Active
+                              <span className="badge bg-warning text-dark fw-bold fs-8">
+                                <i className="bi bi-volume-up-fill me-1"></i> Active CC
                               </span>
                             )}
                           </div>
                           <div className="text-secondary small mb-1 fst-italic">
-                            <span className="fw-semibold text-light me-1">Hindi Source:</span> "{seg.source_text}"
+                            <span className="fw-semibold text-light me-1">Hindi Original:</span> "{seg.source_text}"
                           </div>
-                          <div className="text-gradient fw-bold fs-6">
-                            <span className="fw-semibold text-light me-1">Bangla Target:</span> "{seg.translated_text}"
+                          <div className="text-warning fw-bold fs-6">
+                            <span className="fw-semibold text-light me-1">Bangla Dubbed:</span> "{seg.translated_text}"
                           </div>
                         </div>
                       );

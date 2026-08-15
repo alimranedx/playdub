@@ -77,17 +77,20 @@ class ProcessVideoDubbingJob implements ShouldQueue
             $video->update(['status' => $stepData['status']]);
 
             if (!app()->environment('testing')) {
-                sleep(2);
+                sleep(1);
             }
         }
 
-        // Generate Transcript and Translated Segment Records (e.g., Hindi -> Bangla or En -> Target)
-        $sourceLang = $video->original_language === 'auto' ? 'hi' : $video->original_language;
-        $targetLang = $dubbedVideo->target_language;
+        // Determine source and target languages
+        $sourceLang = strtolower($video->original_language);
+        if ($sourceLang === 'auto') {
+            $sourceLang = 'hi';
+        }
+        $targetLang = strtolower($dubbedVideo->target_language);
 
         $demoSegments = $this->getDemoSegmentsForLanguagePair($sourceLang, $targetLang);
 
-        // Delete previous transcripts & translated segments for clean generation
+        // Clear existing transcripts & translated segments for fresh generation
         Transcript::where('video_id', $video->id)->delete();
 
         foreach ($demoSegments as $index => $item) {
@@ -109,7 +112,7 @@ class ProcessVideoDubbingJob implements ShouldQueue
             ]);
         }
 
-        // Mark as completed
+        // Mark job and records as completed
         $jobRecord->update([
             'status' => JobStatusEnum::COMPLETED,
             'progress' => 100,
@@ -126,63 +129,64 @@ class ProcessVideoDubbingJob implements ShouldQueue
             'status' => JobStatusEnum::COMPLETED,
         ]);
 
-        Log::info("Dubbing Job #{$jobRecord->id} completed with transcripts for DubbedVideo #{$dubbedVideo->id}");
+        Log::info("Dubbing Job #{$jobRecord->id} completed with Hindi -> Bangla transcripts for DubbedVideo #{$dubbedVideo->id}");
     }
 
     private function getDemoSegmentsForLanguagePair(string $sourceLang, string $targetLang): array
     {
-        if ($sourceLang === 'hi' && $targetLang === 'bn') {
+        // High quality Hindi to Bangla translation segments
+        if (($sourceLang === 'hi' || $sourceLang === 'auto') && ($targetLang === 'bn' || $targetLang === 'bangla')) {
             return [
                 [
                     'start_time' => 0.0,
-                    'end_time' => 3.5,
-                    'source_text' => 'नमस्ते, प्लेडब में आपका स्वागत है।',
-                    'translated_text' => 'নমস্কার, প্লেডাবে আপনাকে স্বাগতম।',
+                    'end_time' => 4.5,
+                    'source_text' => 'तू है तो मुझे फिर और क्या चाहिये',
+                    'translated_text' => 'তুমি আছ তো আমার আর কি চাই',
                 ],
                 [
-                    'start_time' => 3.6,
-                    'end_time' => 7.8,
-                    'source_text' => 'यह वीडियो हिंदी से बांग्ला में अनुवादित किया गया है।',
-                    'translated_text' => 'এই ভিডিওটি হিন্দি থেকে বাংলায় অনূদিত হয়েছে।',
+                    'start_time' => 4.6,
+                    'end_time' => 9.2,
+                    'source_text' => 'तेरे बिना जीना पड़े वो पल मुझे ना दे',
+                    'translated_text' => 'তোমাকে ছাড়া বাঁচতে হয় এমন মুহূর্ত যেন আমাকে না দেয়',
                 ],
                 [
-                    'start_time' => 7.9,
-                    'end_time' => 12.0,
-                    'source_text' => 'एआई बहुभाषी वीडियो डबिंग प्लेटफॉर्म।',
-                    'translated_text' => 'এআই বহুভাষিক ভিডিও ডাবিং প্ল্যাটফর্ম।',
+                    'start_time' => 9.3,
+                    'end_time' => 14.0,
+                    'source_text' => 'तू ही मेरा पहला और आखिरी प्यार है',
+                    'translated_text' => 'তুমিই আমার প্রথম এবং শেষ ভালোবাসা',
                 ],
                 [
-                    'start_time' => 12.1,
-                    'end_time' => 16.5,
-                    'source_text' => 'आप किसी भी भाषा में वीडियो देख सकते हैं।',
-                    'translated_text' => 'আপনি যেকোনো ভাষায় ভিডিও দেখতে পারেন।',
+                    'start_time' => 14.1,
+                    'end_time' => 19.5,
+                    'source_text' => 'प्लेडब एआई से हिंदी से बांग्ला ऑडियो और उपशीर्षक अनुवादित',
+                    'translated_text' => 'প্লেডাব এআই দিয়ে হিন্দি থেকে বাংলা অডিও এবং সাবটাইটেল অনূদিত',
                 ],
             ];
         }
 
-        if ($targetLang === 'bn') {
+        if ($targetLang === 'bn' || $targetLang === 'bangla') {
             return [
                 [
                     'start_time' => 0.0,
-                    'end_time' => 3.5,
-                    'source_text' => 'Welcome to PlayDub AI Video Dubbing Platform.',
-                    'translated_text' => 'প্লেডাব এআই ভিডিও ডাবিং প্ল্যাটফর্মে আপনাকে স্বাগতম।',
+                    'end_time' => 4.0,
+                    'source_text' => 'Welcome to PlayDub AI Multilingual Dubbing.',
+                    'translated_text' => 'প্লেডাব এআই বহুভাষিক ডাবিংয়ে স্বাগতম।',
                 ],
                 [
-                    'start_time' => 3.6,
-                    'end_time' => 7.8,
+                    'start_time' => 4.1,
+                    'end_time' => 9.0,
                     'source_text' => 'Translating audio content directly into Bangla.',
-                    'translated_text' => 'ভিডিওর অডিও কনটেন্ট সরাসরি বাংলায় অনূদিত হচ্ছে।',
+                    'translated_text' => 'ভিডিওর অডিও কনটেন্ট সরাসরি বাংলায় অনূদিত হচ্ছে।',
                 ],
                 [
-                    'start_time' => 7.9,
-                    'end_time' => 12.0,
+                    'start_time' => 9.1,
+                    'end_time' => 14.5,
                     'source_text' => 'AI speech-to-text, translation, and voice synthesis.',
-                    'translated_text' => 'এআই স্পিচ-টু-টেক্সট, অনুবাদ এবং ভয়েস সিন্থেসিস প্রযুক্তি।',
+                    'translated_text' => 'এআই স্পিচ-টু-টেক্সট, অনুবাদ এবং ভয়েস সিন্থেসিস।',
                 ],
                 [
-                    'start_time' => 12.1,
-                    'end_time' => 16.5,
+                    'start_time' => 14.6,
+                    'end_time' => 19.5,
                     'source_text' => 'Enjoy your video with native Bangla audio and subtitles.',
                     'translated_text' => 'বাংলা অডিও এবং সাবটাইটেল সহ ভিডিওটি উপভোগ করুন।',
                 ],
@@ -192,13 +196,13 @@ class ProcessVideoDubbingJob implements ShouldQueue
         return [
             [
                 'start_time' => 0.0,
-                'end_time' => 3.5,
+                'end_time' => 5.0,
                 'source_text' => 'Original Video Audio Stream',
                 'translated_text' => "Translated Audio Stream ({$targetLang})",
             ],
             [
-                'start_time' => 3.6,
-                'end_time' => 8.0,
+                'start_time' => 5.1,
+                'end_time' => 10.0,
                 'source_text' => 'Multilingual speech processing active',
                 'translated_text' => "Processed target language content ({$targetLang})",
             ],

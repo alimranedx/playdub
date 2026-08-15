@@ -48,7 +48,12 @@ class VideoController extends Controller
             }
         } elseif ($sourceType === 'url') {
             if (!$title) {
-                $title = 'Video URL Source (' . parse_url($request->source_url, PHP_URL_HOST) . ')';
+                // Parse clean video title from URL
+                if (preg_match('/v=([^&]+)/', $request->source_url, $matches)) {
+                    $title = 'YouTube Video (' . $matches[1] . ')';
+                } else {
+                    $title = 'Video URL Source (' . parse_url($request->source_url, PHP_URL_HOST) . ')';
+                }
             }
         }
 
@@ -203,8 +208,11 @@ class VideoController extends Controller
             return response()->json(['message' => 'Unauthorized access.'], 403);
         }
 
-        $targetLang = $request->query('target_language', 'bn');
-        $dubbedVideo = $video->dubbedVideos()->where('target_language', $targetLang)->first();
+        $targetLang = strtolower($request->query('target_language', 'bn'));
+        
+        $dubbedVideo = $video->dubbedVideos()
+            ->where('target_language', $targetLang)
+            ->first() ?? $video->dubbedVideos()->first();
 
         $transcripts = Transcript::where('video_id', $video->id)
             ->orderBy('sequence')
@@ -228,7 +236,7 @@ class VideoController extends Controller
         return response()->json([
             'video_id' => $video->id,
             'original_language' => $video->original_language,
-            'target_language' => $targetLang,
+            'target_language' => $dubbedVideo ? $dubbedVideo->target_language : $targetLang,
             'segments' => $result,
         ]);
     }
